@@ -244,7 +244,7 @@
    CONFIG — paste your Apps Script Web App URL here
    ========================================================= */
 const CONFIG = {
-  API_URL: 'https://script.google.com/macros/s/AKfycbzXcGKbHzZioJLW9ylYsL6gZ-DzsTvnRYFlAuojaBHP2hZYAyWJX7KGA6aiuM-FQRhN/exec',
+  API_URL: 'PASTE_YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE',
   POLL_INTERVAL_MS: 8000
 };
 
@@ -310,11 +310,11 @@ async function apiList(){
   return data.clients || [];
 }
 
-async function apiSignup(username, password, signupCode){
+async function apiSignup(username, email, password, signupCode){
   const res = await fetch(CONFIG.API_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ action: 'signup', username, password, signupCode })
+    body: JSON.stringify({ action: 'signup', username, email, password, signupCode })
   });
   return res.json();
 }
@@ -343,6 +343,24 @@ async function apiChangePassword(currentPassword, newPassword){
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify({ action: 'changePassword', token: authToken, currentPassword, newPassword })
+  });
+  return res.json();
+}
+
+async function apiRequestReset(username){
+  const res = await fetch(CONFIG.API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ action: 'requestReset', username })
+  });
+  return res.json();
+}
+
+async function apiResetPassword(username, code, newPassword){
+  const res = await fetch(CONFIG.API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ action: 'resetPassword', username, code, newPassword })
   });
   return res.json();
 }
@@ -740,31 +758,74 @@ function renderAll(){
 
 /* ---------------- Auth screens ---------------- */
 
-function showAuthScreen(mode, message, messageType){
+function showAuthScreen(mode, message, messageType, prefill){
   stopPolling();
   document.getElementById('appRoot').style.display = 'none';
   const root = document.getElementById('authRoot');
-  const isSignup = mode === 'signup';
+  prefill = prefill || {};
+
+  const titles = {
+    login: 'Log In',
+    signup: 'Create an Account',
+    'forgot-request': 'Forgot Password',
+    'forgot-reset': 'Reset Password'
+  };
+  const subs = {
+    login: 'SMRC Client Management System',
+    signup: 'SMRC Client Management System — staff signup',
+    'forgot-request': 'Enter your username and we\'ll email you a reset code',
+    'forgot-reset': 'Enter the code we emailed you and choose a new password'
+  };
+
+  let fieldsHtml = '';
+  let submitLabel = '';
+
+  if(mode === 'login'){
+    fieldsHtml = `
+      <div class="field"><label>Username</label><input id="auth_username" autocomplete="username" required value="${escAttr(prefill.username||'')}"></div>
+      <div class="field"><label>Password</label><div class="pw-wrap"><input id="auth_password" type="password" autocomplete="current-password" required><button type="button" class="pw-toggle" onclick="togglePwVisibility('auth_password', this)">👁</button></div></div>`;
+    submitLabel = 'Log In';
+  }else if(mode === 'signup'){
+    fieldsHtml = `
+      <div class="field"><label>Username</label><input id="auth_username" autocomplete="username" required value="${escAttr(prefill.username||'')}"></div>
+      <div class="field"><label>Email</label><input id="auth_email" type="email" autocomplete="email" required value="${escAttr(prefill.email||'')}" placeholder="for password recovery"></div>
+      <div class="field"><label>Password</label><div class="pw-wrap"><input id="auth_password" type="password" autocomplete="new-password" required><button type="button" class="pw-toggle" onclick="togglePwVisibility('auth_password', this)">👁</button></div></div>
+      <div class="field"><label>Confirm Password</label><div class="pw-wrap"><input id="auth_password2" type="password" autocomplete="new-password" required><button type="button" class="pw-toggle" onclick="togglePwVisibility('auth_password2', this)">👁</button></div></div>
+      <div class="field"><label>Signup Code</label><input id="auth_code" required></div>`;
+    submitLabel = 'Sign Up';
+  }else if(mode === 'forgot-request'){
+    fieldsHtml = `
+      <div class="field"><label>Username</label><input id="auth_username" autocomplete="username" required value="${escAttr(prefill.username||'')}"></div>`;
+    submitLabel = 'Send Reset Code';
+  }else if(mode === 'forgot-reset'){
+    fieldsHtml = `
+      <div class="field"><label>Username</label><input id="auth_username" value="${escAttr(prefill.username||'')}" readonly style="background:#F0F1F3;"></div>
+      <div class="field"><label>Reset Code</label><input id="auth_reset_code" inputmode="numeric" maxlength="6" required placeholder="6-digit code from email"></div>
+      <div class="field"><label>New Password</label><div class="pw-wrap"><input id="auth_password" type="password" autocomplete="new-password" required><button type="button" class="pw-toggle" onclick="togglePwVisibility('auth_password', this)">👁</button></div></div>
+      <div class="field"><label>Confirm New Password</label><div class="pw-wrap"><input id="auth_password2" type="password" autocomplete="new-password" required><button type="button" class="pw-toggle" onclick="togglePwVisibility('auth_password2', this)">👁</button></div></div>`;
+    submitLabel = 'Reset Password';
+  }
+
+  let switchHtml = '';
+  if(mode === 'login'){
+    switchHtml = `Don't have an account? <a id="toSignup">Sign up</a><br><a id="toForgot" style="display:inline-block;margin-top:8px;">Forgot password?</a>`;
+  }else if(mode === 'signup'){
+    switchHtml = `Already have an account? <a id="toLogin">Log in</a>`;
+  }else{
+    switchHtml = `<a id="toLogin">Back to log in</a>`;
+  }
+
   root.innerHTML = `
     <div class="auth-wrap">
       <div class="auth-card">
-        <h2>${isSignup ? 'Create an Account' : 'Log In'}</h2>
-        <p class="auth-sub">${isSignup ? 'SMRC Client Management System — staff signup' : 'SMRC Client Management System'}</p>
+        <h2>${titles[mode]}</h2>
+        <p class="auth-sub">${subs[mode]}</p>
         ${message ? `<div class="auth-msg ${messageType||'error'}">${esc(message)}</div>` : ''}
         <form id="authForm">
-          <div class="field"><label>Username</label><input id="auth_username" autocomplete="username" required></div>
-          <div class="field"><label>Password</label><div class="pw-wrap"><input id="auth_password" type="password" autocomplete="${isSignup?'new-password':'current-password'}" required><button type="button" class="pw-toggle" onclick="togglePwVisibility('auth_password', this)">👁</button></div></div>
-          ${isSignup ? `
-          <div class="field"><label>Confirm Password</label><div class="pw-wrap"><input id="auth_password2" type="password" autocomplete="new-password" required><button type="button" class="pw-toggle" onclick="togglePwVisibility('auth_password2', this)">👁</button></div></div>
-          <div class="field"><label>Signup Code</label><input id="auth_code" required></div>
-          ` : ''}
-          <button type="submit" class="auth-btn" id="authSubmitBtn">${isSignup ? 'Sign Up' : 'Log In'}</button>
+          ${fieldsHtml}
+          <button type="submit" class="auth-btn" id="authSubmitBtn">${submitLabel}</button>
         </form>
-        <div class="auth-switch">
-          ${isSignup
-            ? `Already have an account? <a id="toLogin">Log in</a>`
-            : `Don't have an account? <a id="toSignup">Sign up</a>`}
-        </div>
+        <div class="auth-switch">${switchHtml}</div>
       </div>
     </div>`;
 
@@ -772,28 +833,33 @@ function showAuthScreen(mode, message, messageType){
     e.preventDefault();
     const btn = document.getElementById('authSubmitBtn');
     btn.disabled = true;
-    btn.textContent = isSignup ? 'Creating account...' : 'Logging in...';
-    const username = document.getElementById('auth_username').value.trim();
-    const password = document.getElementById('auth_password').value;
 
-    if(isSignup){
+    if(mode === 'signup'){
+      btn.textContent = 'Creating account...';
+      const username = document.getElementById('auth_username').value.trim();
+      const email = document.getElementById('auth_email').value.trim();
+      const password = document.getElementById('auth_password').value;
       const password2 = document.getElementById('auth_password2').value;
       const signupCode = document.getElementById('auth_code').value;
       if(password !== password2){
-        showAuthScreen('signup', 'Passwords do not match.');
+        showAuthScreen('signup', 'Passwords do not match.', 'error', {username, email});
         return;
       }
       try{
-        const res = await apiSignup(username, password, signupCode);
+        const res = await apiSignup(username, email, password, signupCode);
         if(res.ok){
-          showAuthScreen('login', 'Account created — please log in.', 'success');
+          showAuthScreen('login', 'Account created — please log in.', 'success', {username});
         }else{
-          showAuthScreen('signup', res.error || 'Signup failed.');
+          showAuthScreen('signup', res.error || 'Signup failed.', 'error', {username, email});
         }
       }catch(err){
-        showAuthScreen('signup', 'Could not reach the server: ' + err.message);
+        showAuthScreen('signup', 'Could not reach the server: ' + err.message, 'error', {username, email});
       }
-    }else{
+
+    }else if(mode === 'login'){
+      btn.textContent = 'Logging in...';
+      const username = document.getElementById('auth_username').value.trim();
+      const password = document.getElementById('auth_password').value;
       try{
         const res = await apiLogin(username, password);
         if(res.ok){
@@ -803,10 +869,45 @@ function showAuthScreen(mode, message, messageType){
           localStorage.setItem('smrc_username', authUsername);
           enterApp();
         }else{
-          showAuthScreen('login', res.error || 'Login failed.');
+          showAuthScreen('login', res.error || 'Login failed.', 'error', {username});
         }
       }catch(err){
-        showAuthScreen('login', 'Could not reach the server: ' + err.message);
+        showAuthScreen('login', 'Could not reach the server: ' + err.message, 'error', {username});
+      }
+
+    }else if(mode === 'forgot-request'){
+      btn.textContent = 'Sending...';
+      const username = document.getElementById('auth_username').value.trim();
+      try{
+        const res = await apiRequestReset(username);
+        if(res.ok){
+          showAuthScreen('forgot-reset', res.message || 'A reset code has been emailed to you.', 'success', {username});
+        }else{
+          showAuthScreen('forgot-request', res.error || 'Could not send reset code.', 'error', {username});
+        }
+      }catch(err){
+        showAuthScreen('forgot-request', 'Could not reach the server: ' + err.message, 'error', {username});
+      }
+
+    }else if(mode === 'forgot-reset'){
+      btn.textContent = 'Resetting...';
+      const username = document.getElementById('auth_username').value.trim();
+      const code = document.getElementById('auth_reset_code').value.trim();
+      const password = document.getElementById('auth_password').value;
+      const password2 = document.getElementById('auth_password2').value;
+      if(password !== password2){
+        showAuthScreen('forgot-reset', 'Passwords do not match.', 'error', {username});
+        return;
+      }
+      try{
+        const res = await apiResetPassword(username, code, password);
+        if(res.ok){
+          showAuthScreen('login', 'Password reset — please log in with your new password.', 'success', {username});
+        }else{
+          showAuthScreen('forgot-reset', res.error || 'Could not reset password.', 'error', {username});
+        }
+      }catch(err){
+        showAuthScreen('forgot-reset', 'Could not reach the server: ' + err.message, 'error', {username});
       }
     }
   });
@@ -815,6 +916,8 @@ function showAuthScreen(mode, message, messageType){
   if(toSignup) toSignup.addEventListener('click', ()=>showAuthScreen('signup'));
   const toLogin = document.getElementById('toLogin');
   if(toLogin) toLogin.addEventListener('click', ()=>showAuthScreen('login'));
+  const toForgot = document.getElementById('toForgot');
+  if(toForgot) toForgot.addEventListener('click', ()=>showAuthScreen('forgot-request'));
 }
 
 function handleLoggedOut(){
