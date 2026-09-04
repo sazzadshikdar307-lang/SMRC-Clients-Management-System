@@ -196,6 +196,10 @@
       <select id="partnerFilter"><option value="">All partners</option></select>
       <label>Handler</label>
       <select id="handlerFilter"><option value="">All handlers</option></select>
+      <label>Client Name</label>
+      <select id="nameFilter"><option value="">All clients</option></select>
+      <label>Year</label>
+      <select id="yearFilter"><option value="">All years</option></select>
     </div>
     <div class="user-info" id="userInfo">
       <span id="userInfoText"></span>
@@ -252,6 +256,8 @@ let clients = [];
 let stageFilter = 'all';
 let partnerFilter = '';
 let handlerFilter = '';
+let nameFilter = '';
+let yearFilter = '';
 let searchText = '';
 let expandedId = null;
 let editingId = null;
@@ -281,6 +287,13 @@ const STAGE_ALL_LABELS = {all:'All Clients', ...STAGE_LABELS};
 function uid(){ return 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
 function esc(s){ return (s||'').toString().replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 function escAttr(s){ return esc(s).replace(/"/g,'&quot;'); }
+function formatMoney(val){
+  if(val === undefined || val === null || val === '') return '';
+  const cleaned = String(val).replace(/,/g,'').trim();
+  const num = Number(cleaned);
+  if(isNaN(num)) return esc(val);
+  return num.toLocaleString('en-US', { maximumFractionDigits: 2 });
+}
 
 function togglePwVisibility(id, btn){
   const input = document.getElementById(id);
@@ -477,10 +490,14 @@ function renderNav(){
 function renderFilterDropdowns(){
   const pSel = document.getElementById('partnerFilter');
   const hSel = document.getElementById('handlerFilter');
-  const curP = pSel.value, curH = hSel.value;
+  const nSel = document.getElementById('nameFilter');
+  const ySel = document.getElementById('yearFilter');
+  const curP = pSel.value, curH = hSel.value, curN = nSel.value, curY = ySel.value;
   pSel.innerHTML = '<option value="">All partners</option>' + uniqueValues('partner').map(p=>`<option value="${escAttr(p)}">${esc(p)}</option>`).join('');
   hSel.innerHTML = '<option value="">All handlers</option>' + uniqueValues('handler').map(h=>`<option value="${escAttr(h)}">${esc(h)}</option>`).join('');
-  pSel.value = curP; hSel.value = curH;
+  nSel.innerHTML = '<option value="">All clients</option>' + uniqueValues('name').map(n=>`<option value="${escAttr(n)}">${esc(n)}</option>`).join('');
+  ySel.innerHTML = '<option value="">All years</option>' + uniqueValues('auditYear').map(y=>`<option value="${escAttr(y)}">${esc(y)}</option>`).join('');
+  pSel.value = curP; hSel.value = curH; nSel.value = curN; ySel.value = curY;
 }
 
 function filteredClients(){
@@ -488,6 +505,8 @@ function filteredClients(){
     if(stageFilter!=='all' && c.stage!==stageFilter) return false;
     if(partnerFilter && c.partner!==partnerFilter) return false;
     if(handlerFilter && c.handler!==handlerFilter) return false;
+    if(nameFilter && c.name!==nameFilter) return false;
+    if(yearFilter && c.auditYear!==yearFilter) return false;
     if(searchText){
       const t = searchText.toLowerCase();
       if(!(c.name||'').toLowerCase().includes(t) && !(c.referredBy||'').toLowerCase().includes(t)) return false;
@@ -518,7 +537,7 @@ function renderTable(){
       <td>${esc(c.partner)||'—'}</td>
       <td><span class="badge ${c.stage}"><span class="dot"></span>${STAGE_LABELS[c.stage]||c.stage}</span></td>
       <td class="mono">${esc(c.auditYear)||'—'}</td>
-      <td class="mono">${c.fee?esc(c.fee):'—'}</td>
+      <td class="mono">${c.fee?formatMoney(c.fee):'—'}</td>
       <td>${c.tdsDeducted ? `<span class="deduct-yes">Deducted</span>${c.tdsAmount?` <span class="mono">(${esc(c.tdsAmount)})</span>`:''}` : '<span class="deduct-no">Not deducted</span>'}</td>
       <td>${c.vdsDeducted ? `<span class="deduct-yes">Deducted</span>${c.vdsAmount?` <span class="mono">(${esc(c.vdsAmount)})</span>`:''}` : '<span class="deduct-no">Not deducted</span>'}</td>
       <td class="mono">${esc(c.nextFollowUp)||'—'}</td>
@@ -991,6 +1010,8 @@ function openChangePasswordForm(){
 
 document.getElementById('partnerFilter').addEventListener('change', e=>{ partnerFilter = e.target.value; renderTable(); });
 document.getElementById('handlerFilter').addEventListener('change', e=>{ handlerFilter = e.target.value; renderTable(); });
+document.getElementById('nameFilter').addEventListener('change', e=>{ nameFilter = e.target.value; renderTable(); });
+document.getElementById('yearFilter').addEventListener('change', e=>{ yearFilter = e.target.value; renderTable(); });
 document.getElementById('searchBox').addEventListener('input', e=>{ searchText = e.target.value; renderTable(); });
 document.getElementById('newClientBtn').addEventListener('click', ()=>openForm());
 document.getElementById('refreshBtn').addEventListener('click', ()=>loadData(false));
